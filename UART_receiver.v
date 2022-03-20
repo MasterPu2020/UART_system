@@ -1,62 +1,89 @@
-//接收逻辑电路
-module UART_receiver(
-    CLK_BPS,
-    reset,
-    uart_txd_in,
-    receive_data,
-    receive_data_counter,
-    accept
-    );
 
-    input CLK_BPS;
-    input reset;
-    input uart_txd_in;
-    output reg [7:0] receive_data = 0;
-    output reg [3:0] receive_data_counter = 0;
-    output reg accept = 0;
+module UART_receiver
 
-    always @(posedge CLK_BPS) begin
-        case (reset)
-            1'b0: begin
-                if (receive_data_counter == 0 && uart_txd_in == 0) begin
-                    receive_data_counter = receive_data_counter + 1;
-                    accept = 0;
-                end
-                else if (receive_data_counter > 0 && receive_data_counter < 9) begin
-                    case (receive_data_counter)
-                        4'b0001: receive_data[0] = uart_txd_in;
-                        4'b0010: receive_data[1] = uart_txd_in;
-                        4'b0011: receive_data[2] = uart_txd_in;
-                        4'b0100: receive_data[3] = uart_txd_in;
-                        4'b0101: receive_data[4] = uart_txd_in;
-                        4'b0110: receive_data[5] = uart_txd_in;
-                        4'b0111: receive_data[6] = uart_txd_in;
-                        4'b1000: receive_data[7] = uart_txd_in;
-                        default: receive_data = 0;
-                    endcase
-                    receive_data_counter = receive_data_counter + 1;
-                end
-                else if (receive_data_counter == 9 && uart_txd_in == 1) begin
-                    receive_data_counter = 0;
-                    accept = 1;
-                end
-                else begin
-                    receive_data = 0;
-                    receive_data_counter = 0;
-                    accept = 0;
-                end
+//----------------------------------------------------------------
+// Param
+//----------------------------------------------------------------
+
+#(
+    parameter EN_RESET = 1'b1
+)
+
+//----------------------------------------------------------------
+// Ports
+//----------------------------------------------------------------
+
+(
+     clk_BPS_i
+    ,rst_i
+    ,uart_i
+    ,rece_data_o
+    ,rece_data_counter_o
+    ,accept_o
+);
+
+    // Inputs
+    input clk_BPS_i;
+    input rst_i;
+    input uart_i;
+
+    // Outputs
+    output reg [7:0] rece_data_o = 0;
+    output reg [3:0] rece_data_counter_o = 0;
+    output reg accept_o = 0;
+
+//----------------------------------------------------------------
+// Registers / Wires
+//----------------------------------------------------------------
+
+parameter OFF_RESET = ~ EN_RESET;
+
+//----------------------------------------------------------------
+// Circuits
+//----------------------------------------------------------------
+
+always @(posedge clk_BPS_i) begin
+    case (rst_i)
+        OFF_RESET: begin
+            if (rece_data_counter_o == 0 && uart_i == 0) begin
+                rece_data_counter_o = rece_data_counter_o + 1;
+                accept_o = 0;
             end
-            1'b1: begin
-                receive_data = 0;
-                receive_data_counter = 0;
-                accept = 0;
+            else if (rece_data_counter_o > 0 && rece_data_counter_o < 9) begin
+                case (rece_data_counter_o)
+                    4'b0001: rece_data_o[0] = uart_i;
+                    4'b0010: rece_data_o[1] = uart_i;
+                    4'b0011: rece_data_o[2] = uart_i;
+                    4'b0100: rece_data_o[3] = uart_i;
+                    4'b0101: rece_data_o[4] = uart_i;
+                    4'b0110: rece_data_o[5] = uart_i;
+                    4'b0111: rece_data_o[6] = uart_i;
+                    4'b1000: rece_data_o[7] = uart_i;
+                    default: rece_data_o = 0;
+                endcase
+                rece_data_counter_o = rece_data_counter_o + 1;
             end
-            default: begin
-                receive_data = 0;
-                receive_data_counter = 0;
-                accept = 0;
+            else if (rece_data_counter_o == 9 && uart_i == 1) begin
+                rece_data_counter_o = 0;
+                accept_o = 1;
             end
-        endcase
-    end
+            else begin
+                rece_data_o = 0;
+                rece_data_counter_o = 0;
+                accept_o = 0;
+            end
+        end
+        EN_RESET: begin
+            rece_data_o = 0;
+            rece_data_counter_o = 0;
+            accept_o = 0;
+        end
+        default: begin
+            rece_data_o = 0;
+            rece_data_counter_o = 0;
+            accept_o = 0;
+        end
+    endcase
+end
 
 endmodule

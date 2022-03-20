@@ -1,62 +1,88 @@
-//发送排队数据储存器：单次发送数据量最多254b
-module lauch_RAM(
-    reset,
-    data_in, //写数据
-    data_out, //接UART_launcher中的launch_data
-    address, //写地址
-    CLK_BPS,
-    CLK100MHZ,
-    en_write, //写使能
-    launch_data_counter,
-    address_counter //读到的位置，根据这个位置去判断是否开始下一次写，或是否终止数据发送
+
+module lauch_RAM
+
+//----------------------------------------------------------------
+// Param
+//----------------------------------------------------------------
+
+#(
+    parameter EN_RESET = 1'b1,
+    parameter EN_W = 1'b1
+)
+
+//----------------------------------------------------------------
+// Ports
+//----------------------------------------------------------------
+
+(
+     clk_i
+    ,clk_BPS_i
+    ,rst_i
+    ,l_en_w_i //写使能
+    ,l_w_addr_i //写地址
+    ,l_data_i //写数据
+    ,l_data_counter_i
+    ,l_data_o //接UART_launcher中的launch_data
+    ,l_addr_counter_o //读到的位置，根据这个位置去判断是否开始下一次写，或是否终止数据发送
 );
 
-    input reset;
-    input [7:0]data_in;
-    output reg [7:0] data_out = 0;
-    input [7:0] address; //256b Local RAM
-    input CLK_BPS;
-    input CLK100MHZ;
-    input en_write;
-    input [3:0] launch_data_counter;
-    output reg [7:0] address_counter = 0;
+    // Inputs
+    input clk_i;
+    input clk_BPS_i;
+    input rst_i;
+    input l_en_w_i;
+    input [7:0] l_w_addr_i;
+    input [7:0] l_data_i;
+    input [3:0] l_data_counter_i;
 
-    reg [7:0] RAM[255:0]; //宽度8 深度256
-    integer row;
+    // Outputs
+    output reg [7:0] l_data_o = 0;
+    output reg [7:0] l_addr_counter_o = 0;
 
-    //写逻辑电路(无接口协议): 只要有地址，写使能就可以写
-    always @(posedge CLK100MHZ) begin
-        if (en_write == 1 && reset == 0) //无else产生锁存器
-            RAM[address] = data_in;
-        else if (reset == 1) begin
-            for(row = 0; row <= 255; row = row + 1)
-                    RAM[row] = 0;
+//----------------------------------------------------------------
+// Registers / Wires
+//----------------------------------------------------------------
+
+reg [7:0] RAM[255:0]; //宽度8 深度256
+integer row;
+parameter OFF_RESET = ~ EN_RESET;
+
+//----------------------------------------------------------------
+// Circuits
+//----------------------------------------------------------------
+
+//写逻辑电路(无接口协议): 只要有地址，写使能就可以写
+always @(posedge clk_i) begin
+    if (l_en_w_i == EN_W && rst_i == OFF_RESET) //无else产生锁存器
+        RAM[l_w_addr_i] = l_data_i;
+    else if (rst_i == 1) begin
+        for(row = 0; row <= 255; row = row + 1)
+                RAM[row] = 0;
+    end
+end
+
+//读逻辑电路
+always @(negedge clk_BPS_i) begin
+    case (rst_i)
+        OFF_RESET: begin
+            if (l_addr_counter_o >= 255) //溢出重读
+                l_addr_counter_o = 0;
+            else begin
+                case (l_data_counter_i) //计数与读逻辑
+                    4'b1001: l_addr_counter_o = l_addr_counter_o + 1;
+                    default: l_data_o = RAM[l_addr_counter_o];
+                endcase 
+            end
         end
-    end
-
-
-    //读逻辑电路
-    always @(negedge CLK_BPS) begin
-        case (reset)
-            1'b0: begin
-                if (address_counter >= 255) //溢出重读
-                    address_counter = 0;
-                else begin
-                    case (launch_data_counter) //计数与读逻辑
-                        4'b1001: address_counter = address_counter + 1;
-                        default: data_out = RAM[address_counter];
-                    endcase 
-                end
-            end
-            1'b1: begin
-                data_out = 0;
-                address_counter = 0;
-            end
-            default: begin
-                data_out = 0;
-                address_counter = 0;
-            end
-        endcase
-    end
+        EN_RESET: begin
+            l_data_o = 0;
+            l_addr_counter_o = 0;
+        end
+        default: begin
+            l_data_o = 0;
+            l_addr_counter_o = 0;
+        end
+    endcase
+end
 
 endmodule
